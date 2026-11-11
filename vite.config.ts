@@ -8,6 +8,8 @@ export default defineConfig({
         index: resolve(import.meta.dirname, 'index.html'),
         walker: resolve(import.meta.dirname, 'examples/walker/index.html'),
         village: resolve(import.meta.dirname, 'examples/village/index.html'),
+        calle: resolve(import.meta.dirname, 'examples/calle/index.html'),
+        carrer: resolve(import.meta.dirname, 'examples/carrer/index.html'),
       },
     },
   },

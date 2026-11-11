@@ -1,8 +1,35 @@
 # Recipes (from `examples/plaza`)
 
-Sizes in metres unless they say px. At scale 6.5 a metre up is 6.5 px.
+Sizes in metres unless they say px. The reference scene is a close view at scale 11 (a
+metre up is 11 px); the first draft was a whole-square view at 6.5 on a slab, and both are
+described here.
 
-## The slab and the square
+## Close view of a landmark
+
+- Camera: `iso({ scale: 11, origin: [453, 278] })` on 960 × 600, the landmark's front on
+  the x = 0 edge facing +x, its towers cropped by the top of the card. Check the bottom
+  edge: things are visible while x + y < (600 − oy) / (s / 2).
+- West front recessed 1.2 m between the towers so the tower's inner flank shows; coursed
+  ashlar as faint lines every 0.6 m; a portal of six archivolts each lined with small
+  figures, three jamb statues a side on pedestals under canopies, studded doors with iron
+  strap hinges and a trumeau statue, a tympanum; a gallery of niches with figures; a
+  sixteen-light rose; a tower clock that keeps the scene's time; gargoyles; side portals.
+- Steps across the front, a landing in the recess, a paler worn hollow in each tread,
+  side walls with pedestals and urns, stone posts along the bottom with iron chains swaying
+  between them (a dashed catenary), grand three-lantern lamps either side.
+- Ground in patterns: granite flags (`p-flags`, courses 0.8 m with staggered joints,
+  a tile of 3.2 × 4.2 m), weathered and replaced stones as faint lighter and darker slabs,
+  river-pebble mosaic in two tones (`p-peb-dark`, `p-peb-light`: a 0.6 m tile of nine
+  herringbone pebbles 0.15 m long) making a framed panel before the steps, four-petalled
+  corner fleurons, a sixteen-point star medallion on the portal's axis, a chevron band
+  running out across the square. Patterns don't follow the night palette: lay a veil of
+  paper colour over them at ~0.6 × inkT.
+- Tree pits with radial cast-iron grates, a manhole cover, a drainage channel, bins,
+  bicycles, a scooter.
+
+## Whole-square view
+
+### The slab and the square
 
 - Slab: `box()` from (−12.5, −12.5, −1.8) to (50.5, 41.5, 0); top in a pale stone, the two
   visible sides darker earth with two strata lines. It frames the scene and gives shadows
@@ -11,7 +38,7 @@ Sizes in metres unless they say px. At scale 6.5 a metre up is 6.5 px.
   darker setts round the fountain with radial joints; a kerb line where the square meets
   the pavement.
 
-## Row houses on the back edges
+### Row houses on the back edges
 
 - A box per building (12 m frontage, 10–14 m tall, 11 m deep), a gable roof whose ridge
   runs along the row (`'x'` for the back row, `'y'` for the left row) with tile courses
@@ -25,7 +52,7 @@ Sizes in metres unless they say px. At scale 6.5 a metre up is 6.5 px.
   scalloped valance.
 - Wall colours: warm creams, ochres, pale terracotta; shutters green, brown or blue.
 
-## A Gothic cathedral
+### A Gothic cathedral
 
 - Two towers 7 × 7 m, 29 m to the balustrade, belfry openings near the top with bells
   hanging in them, string courses, one lancet per face lower down; an octagonal spire
@@ -50,11 +77,19 @@ Sizes in metres unless they say px. At scale 6.5 a metre up is 6.5 px.
   ticks and a few fruit, swaying a little with the wind.
 - Lamps: a 4.2 m post and a lantern whose glass lights after dusk, a pool of light as a
   circle in the ground plane, a halo round the lantern.
-- Café tables: a round top at 0.75 m, a square parasol (two coloured faces and one pale)
-  at 2.15–2.75 m that shifts with the wind; two chairs' worth of seats per table.
+- Café tables: a round top at 0.75 m, a square parasol: all four panels of a shallow
+  pyramid (seen from above, the back two show too), alternating colours, a scalloped hem
+  on the two front edges, shifting with the wind; two chairs' worth of seats per table.
 - Benches facing the fountain: a wooden slab box on two legs.
 
 ## People (`people.ts`)
+
+- Figures are designed ~12 px tall and scaled by `I.s / 6.5`; the close view adds a far
+  arm, shoes, sun hats and caps, backpacks and totes, long hair.
+- Regulars give a square its character: a guitarist on a stool with an open case filling
+  with coins (click to tip him), a balloon seller (click and a balloon gets away and drifts
+  off), someone feeding the pigeons from a bench, a tour group listening to a guide with a
+  flag, arriving and leaving through the day.
 
 - About 12 px tall at scale 6.5–7: legs as two strokes from the hip, a torso shape in a
   clothing colour (a flared one for skirts), a head circle with a hair cap, one visible

@@ -26,8 +26,9 @@ pointer.
 `skills/iso-line-art/` is a second skill for scenes seen from above at a quasi-isometric
 (2:1 dimetric) angle: squares, markets, harbours as living dioramas. It adds `lib/iso.ts`
 (camera, planes, boxes and roofs, the sun's light and shadows) to the library, and
-`examples/plaza/` is its reference scene, a cathedral square with shops, café terraces,
-people sitting and walking, and pigeons. To install it in Claude Code, copy or link the
+`examples/plaza/` is its reference scene, a close view of a cathedral's steps and the
+square before them: a carved portal, pebble-mosaic paving, café terraces, people sitting
+and walking, a guitarist, a balloon seller, pigeons. To install it in Claude Code, copy or link the
 folder into your skills directory alongside this one:
 
 ```sh

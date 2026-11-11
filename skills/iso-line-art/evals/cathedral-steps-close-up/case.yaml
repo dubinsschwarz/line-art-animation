@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: cathedral-steps-close-up
+expected_outcome: |
+  A close quasi-isometric view (roughly 10–12 px a metre): the cathedral front in the upper left facing
+  screen lower-right, its towers cropped by the top edge, neighbouring buildings beside it and along the
+  other back edge; detailed steps (treads, side walls, posts or rails) and a richly detailed ground in front
+  (patterned paving, mosaic or similar, drains, tree grates), a carved portal; many people seated on the steps
+  and nearby, walkers, life in the square; shadows and night lighting. Typechecks, builds, no console errors.

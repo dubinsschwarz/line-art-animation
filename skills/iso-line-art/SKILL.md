@@ -14,7 +14,8 @@ seen as a living diorama.
 This skill lives in the `line-art-animation` repository (`skills/iso-line-art/`). It uses
 that repository's `lib/` — `ink.ts` (pens, `run()`), `motion.ts` (springs, wind),
 `daynight.ts` (palette) — plus `lib/iso.ts`, the camera written for it. The reference
-scene is `examples/plaza/` (a cathedral square). Read it before building anything:
+scene is `examples/plaza/`: the steps of a cathedral and the square before them, seen close
+(11 px a metre), with the west front filling the upper left. Read it before building anything:
 `build.ts` for architecture and furniture, `people.ts` for figures and pigeons, `main.ts`
 for time, light, sorting and the comings and goings.
 
@@ -33,16 +34,22 @@ wall's local axes run; read it before writing the first façade.
 
 ## Workflow
 
-1. **Frame the camera first.** Decide the footprint (a square of ~40–50 m works on a
-   960×600 card), where the tall things go, and the scale. Compute the screen extent of the
+1. **Frame the camera first.** Decide whether this is a *whole-place* view (the full
+   square on a slab, ~6.5 px a metre, people ~11 px) or a *close* view (a corner of it,
+   ~11 px a metre, people ~19 px, the landmark cropped by the card's edge), where the tall
+   things go, and the scale. Ask which the person means if it isn't obvious: "a square in
+   front of a cathedral" can be either, and the close view is where detail lives. Compute the screen extent of the
    tallest point and the front corner of the ground slab and fit them in the card
    (`projection.md`, "Fitting the camera"). Things that run off the top are the most
    common first-draft fault.
 2. **Block out the masses** with `box()`, `gable()` and `pyramid()`, paper fills, and look
    at one screenshot. Composition is decided here: tall buildings along the two back edges
-   (small x + y), the front left open so nothing important hides behind anything. Put the
-   whole scene on a **slab** with visible stone sides, so it reads as a diorama on the page
-   instead of ground running off the card.
+   (small x + y), the front left open so nothing important hides behind anything. For a
+   whole-place view put the scene on a **slab** with visible stone sides, so it reads as a
+   diorama on the page; a close view runs off the card on every side instead.
+   To see a building from a different side, **rotate the layout, not the camera**: only
+   +x and +y faces are ever visible, so a façade that should face the viewer's lower right
+   stands on the x = 0 edge facing +x, one facing lower left stands on y = 0 facing +y.
 3. **Dress the walls** in wall planes: floors of windows with shutters and balconies, shop
    fronts with awnings and signs (letters ≥ 0.75 m or they're unreadable), the landmark's
    portals, rose window and towers. See `references/recipes.md`.
@@ -51,7 +58,10 @@ wall's local axes run; read it before writing the first façade.
    with `boxShadow()` / `blobShadow()` into **one merged path**, clipped to the slab.
 5. **Furnish the square**: paving drawn in the ground plane, fountain, trees in pits,
    lamps, benches, café tables with parasols. Each is a depth-sorted prop with an optional
-   `draw()` and `shadow()`.
+   `draw()` and `shadow()`. In a close view the ground is where the eye rests, so draw it as
+   it's really laid (granite courses with staggered joints, pebble mosaic, a medallion,
+   drains, tree grates) rather than a grid. Fine texture is an SVG `<pattern>` in the
+   ground plane's metres: it transforms with the plane and costs nothing per frame.
 6. **People and life.** Seats that fill and empty with the hour; walkers on routes with
    pauses (looking up, taking a photo) that go round obstacles; staff (a waiter); a flock
    of pigeons that a running child or the bells send up. Get one corner looking right and
@@ -78,11 +88,15 @@ wall's local axes run; read it before writing the first façade.
   shadows sweep across a square whose buildings stand along the back edges, and each row of
   façades gets its turn in the light. Shadows of things in the air (birds) are a small dot
   displaced along the cast, not a streak from the ground.
-- **At this scale a person is ~11 px.** Posture and placement carry everything: draw
+- **A person is ~11 px wide-view, ~19 px close.** Posture and placement carry everything: draw
   figures as upright billboards at their feet's screen point, in profile, facing whichever
   way the heading's screen-x (`dx − dy`) points. A seat's height decides how sitting reads:
   ~0.45 m for chairs and benches, ~0.7 m for a fountain rim, and *knees up* on steps.
-  People fade in and out (never pop), and enter at the slab's edge.
+  People fade in and out (never pop), and enter at the slab's or the card's edge. Close
+  up, give them both arms, shoes, hats and bags, and something in their hands (an ice
+  cream, a phone, a book, a camera, a guide's flag): it's what makes a crowd read as people.
+- **Shadows go only on drawn ground.** Clip the merged shadow path to the slab or the
+  paving, or the back rows' shadows fall into the sky behind the roofs.
 - **Life comes from schedules, not from motion everywhere.** Terraces busy at lunch and
   late at night, steps and benches by day, fewer walkers after midnight, bells on the hour.
   Idle motion is small: a sip, a glance, a wave when clicked.

@@ -135,7 +135,7 @@ export function seated(I: Iso, layer: Element, x: number, y: number, z: number, 
     key: I.depth(x, y, z), g: fig.g, x, y,
     poke() { wave = 1.4; },
     leave() { leaving = true; },
-    shadow: (sun) => (op > 0.3 ? blobShadow(I, sun, x, y, 0.3, z + 1.1) : ''),
+    shadow: (sun) => (op > 0.3 ? blobShadow(I, sun, x, y, 0.3, 1.1, z) : ''),
     draw(t, dt, P) {
       op = clamp(op + (leaving ? -dt : dt) * 0.8, 0, 1);
       if (leaving && op <= 0) a.done = true;
@@ -188,7 +188,7 @@ export function walker(I: Iso, layer: Element, route: Array<{ x: number; y: numb
   const a: Actor = {
     key: I.depth(x, y), g: fig.g, x, y,
     poke() { wave = 1.4; pause = Math.max(pause, 1.4); },
-    shadow: (sun) => (op > 0.3 ? blobShadow(I, sun, x, y, 0.3, kid ? 1.1 : 1.65) : ''),
+    shadow: (sun) => (op > 0.3 ? blobShadow(I, sun, x, y, 0.3, kid ? 1.1 : 1.65, height(x, y)) : ''),
     draw(t, dt, P) {
       op = clamp(op + (fading ? -dt : dt) * 1.4, 0, 1);
       if (fading && op <= 0) { a.done = true; return; }

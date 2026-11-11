@@ -1,16 +1,32 @@
 # Recipes (from `examples/plaza`)
 
-Sizes in metres unless they say px. The reference scene is a close view at scale 11 (a
-metre up is 11 px); the first draft was a whole-square view at 6.5 on a slab, and both are
+Sizes in metres unless they say px. The reference scene is a close view at scale 16 (a
+metre up is 16 px); the first draft was a whole-square view at 6.5 on a slab, and both are
 described here.
 
 ## Close view of a landmark
 
-- Camera: `iso({ scale: 11, origin: [453, 278] })` on 960 × 600, the landmark's front on
+- Camera: `iso({ scale: 16, origin: [538, 226] })` on 960 × 600, the landmark's front on
   the x = 0 edge facing +x, its towers cropped by the top of the card. Check the bottom
-  edge: things are visible while x + y < (600 − oy) / (s / 2).
-- West front recessed 1.2 m between the towers so the tower's inner flank shows; coursed
-  ashlar as faint lines every 0.6 m; a portal of six archivolts each lined with small
+  edge: things are visible while x + y < (600 − oy) / (s / 2) (≈ 46 m here), and move the
+  furniture and the regulars inside it.
+- No sky: the rows round the square are 17–19.5 m with 3.6 m roofs, and a taller block
+  stands behind the left-hand row to fill the corner above it. Check the top edge at each
+  ridge: sy = oy + (x + y)·s/2 − z·s must be < 0 across the card's width.
+- Time is set by dragging the tower clock's hour hand (12 h a turn): take the pointer back
+  into the wall's metres (on x = 0: y = (ox − sx)/s, z = (oy + y·s/2 − sy)/(s·zs)) and read
+  its angle about the dial's centre.
+- The near sides of the square are four unseen boxes (17–19 m) with two street gaps; they
+  only cast shadows, on the paving and up the cathedral and the shops (`wallShadow`), and
+  walkers arrive and leave by the gaps and the alley.
+- Textures (`groundPatterns()` in `build.ts`): `p-grime` 6 m tile of specks, gum spots and
+  faint stains over all the paving and the treads; `p-stucco` 5 m tile of specks, redone
+  patches and two hairline cracks on every rendered wall; `p-ashlar` courses 0.6 m with
+  staggered joints and the odd paler or darker block on the cathedral; `p-roof` cover tiles
+  0.45 m wide in 0.4 m courses on each roof slope; cakes, bottles, fans and postcards, pots
+  and plates in the shop windows.
+- West front recessed 1.2 m between the towers so the tower's inner flank shows; dressed
+  stone (`p-ashlar`); a portal of six archivolts each lined with small
   figures, three jamb statues a side on pedestals under canopies, studded doors with iron
   strap hinges and a trumeau statue, a tympanum; a gallery of niches with figures; a
   sixteen-light rose; a tower clock that keeps the scene's time; gargoyles; side portals.

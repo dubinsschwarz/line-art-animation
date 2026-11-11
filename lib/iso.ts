@@ -169,11 +169,29 @@ export function boxShadow(I: Iso, sun: Sun, a: V3, b: V3): string {
 
 /** Shadow of a point-like thing (a person, a lamp head, a crown) of height h: an ellipse
  *  stretched from its foot along the cast. */
-export function blobShadow(I: Iso, sun: Sun, x: number, y: number, r: number, h: number): string {
+export function blobShadow(I: Iso, sun: Sun, x: number, y: number, r: number, h: number, z = 0): string {
   const pts: Vec[] = [];
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2, cx = Math.cos(a) * r, cy = Math.sin(a) * r;
-    pts.push(I.p(x + cx, y + cy, 0), I.p(x + cx + sun.cast[0] * h, y + cy + sun.cast[1] * h, 0));
+    pts.push(I.p(x + cx, y + cy, z), I.p(x + cx + sun.cast[0] * h, y + cy + sun.cast[1] * h, z));
   }
   return 'M' + hull(pts).map((q) => `${f(q[0])} ${f(q[1])}`).join('L') + 'Z';
+}
+
+/** Shadow of a box on a wall: the vertical plane x = c (axis 'x', facing +x) or y = c
+ *  (axis 'y', facing +y). Returns the convex polygon as world points on the plane, or null
+ *  when the sun is behind the wall or the box stands behind it. Clip the result to the wall
+ *  (and z ≥ 0) when drawing; combine with the box's ground shadow for the full picture. */
+export function wallShadow(sun: Sun, a: V3, b: V3, axis: 'x' | 'y', c = 0): V3[] | null {
+  const e = Math.max(0.02, sun.elev), cz = Math.cos(e);
+  const L = [sun.dir[0] * cz, sun.dir[1] * cz, Math.sin(e)];
+  const k = axis === 'x' ? 0 : 1;
+  if (L[k] <= 0.03 || Math.min(a[k], b[k]) < c) return null;
+  const pts: Vec[] = [];
+  for (const x of [a[0], b[0]]) for (const y of [a[1], b[1]]) for (const z of [a[2], b[2]]) {
+    const P = [x, y, z], t = (P[k] - c) / L[k];
+    const H = [P[0] - t * L[0], P[1] - t * L[1], P[2] - t * L[2]];
+    pts.push([axis === 'x' ? H[1] : H[0], H[2]]);
+  }
+  return hull(pts).map(([s, z]) => (axis === 'x' ? [c, s, z] : [s, c, z]) as V3);
 }

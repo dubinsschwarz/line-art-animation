@@ -19,6 +19,9 @@ const M = (px: number, I: Iso) => px / I.s;   // a pen width in px, expressed in
 // from the sun (direction and strength) and the day/night palette.
 interface Shaded { n: Element; normal: V3; c: RGB; k: number; attr: string }
 const shaded: Shaded[] = [];
+const last = new WeakMap<Element, Record<string, string>>();
+/** setAttribute, skipped when the value is unchanged (most frames, most nodes). */
+export const put = (n: Element, a: string, v: string) => { let m = last.get(n); if (!m) last.set(n, (m = {})); if (m[a] !== v) { m[a] = v; n.setAttribute(a, v); } };
 const SHADE = toRGB('#6f6c8a'), MOONLIT = toRGB('#3e3026');
 const surface = (n: Element, colour: string, normal: V3, k = 0.85, attr = 'fill') => { shaded.push({ n, normal, c: toRGB(colour), k, attr }); return n; };
 // flat colours that only follow day and night (signs, awnings, clothes of things)
@@ -31,9 +34,9 @@ export function shade(sun: Sun, P: Palette) {
     const L = lit(sun, s.normal);
     const day = mix(P.paper, mix(s.c, SHADE, (1 - L) * 0.5), s.k);
     const night = mix(P.paper, mix(s.c, MOONLIT, 0.45), 0.4 * s.k);
-    s.n.setAttribute(s.attr, rgb(mix(day, night, P.inkT)));
+    put(s.n, s.attr, rgb(mix(day, night, P.inkT)));
   }
-  for (const t of tinted) t.n.setAttribute(t.attr, rgb(mix(t.c, mix(t.c, [12, 16, 30], 0.6), P.inkT * t.k)));
+  for (const t of tinted) put(t.n, t.attr, rgb(mix(t.c, mix(t.c, [12, 16, 30], 0.6), P.inkT * t.k)));
 }
 
 const path = (parent: Element, d: string, attrs: Record<string, string | number> = {}) =>
@@ -57,7 +60,7 @@ export function drawLights(P: Palette, tau: number, dt: number) {
     if (w.late < 9 && sinceDusk > w.late - 0.75 && sinceDusk < 0.5) on = 0;
     w.lit += (on - w.lit) * Math.min(1, dt * 3);
     const glass = mix(mix(P.paper, GLASS, 0.6 * (1 - P.inkT)), DARK_GLASS, 0.4 * P.inkT);
-    w.n.setAttribute('fill', rgb(mix(glass, w.warm, w.lit * 0.85)));
+    put(w.n, 'fill', rgb(mix(glass, w.warm, w.lit * 0.85)));
   }
 }
 
@@ -126,10 +129,108 @@ function shop(I: Iso, parent: Element, wall: Wall, normal: V3, u0: number, u1: n
 // the viewer; shops and the café run along the y = 0 edge. The camera is close (11 px a
 // metre), so the ground in front of the steps is drawn as it would really be laid:
 // granite courses, pebble mosaic, a medallion on the portal's axis.
+export const FOUNTAIN: [number, number] = [25, 14];
+const FRONT_RECESS = 1.2;
 export const FRONT = { y0: 2, y1: 24, recess: 1.2, cy: 13 };
+/** Houses closing the square's near sides, never drawn: they only cast shadows. Gaps are streets. */
+export const ENCLOSURE: Array<[V3, V3]> = [
+  [[46, -11, 0], [58, 16, 18]], [[46, 24, 0], [58, 52, 18]],
+  [[-11, 40, 0], [18, 52, 19]], [[26, 40, 0], [58, 52, 19]],
+];
+/** Wall planes that receive shadows: the x = 0 front (cathedral, its neighbours) and the
+ *  y = 0 shop row, each as [plane, along-from, along-to, height]. */
+export const WALLS: Array<['x' | 'y', number, number, number, number?]> = [
+  ['x', 0, 1, 19], ['x', 2, 9, 30], ['x', 17, 24, 30], ['x', 9, 17, 22, -FRONT_RECESS], ['x', 27.2, 40, 18],
+  ['y', 0.6, 13, 17.5], ['y', 13, 28, 19.5], ['y', 28, 46, 17.5],
+];
 
-/** Patterns, all in ground-plane metres (they transform with the plane). */
+/** A tiled roof slope drawn as the p-roof pattern on the slope's own plane. */
+function roofTiles(g: Element, I: Iso, x0: number, y0: number, x1: number, y1: number, h: number, rise: number, ridge: 'x' | 'y') {
+  if (ridge === 'x') {
+    const run = (y1 - y0) / 2 + 0.3, L = Math.hypot(run, rise);
+    const pg = planeGroup(g, I.plane([x0 - 0.3, y1 + 0.3, h], [1, 0, 0], [0, -run / L, rise / L]));
+    el('path', { d: rect(0, 0, x1 - x0 + 0.6, L), fill: 'url(#p-roof)', stroke: 'none' }, pg);
+  } else {
+    const run = (x1 - x0) / 2 + 0.3, L = Math.hypot(run, rise);
+    const pg = planeGroup(g, I.plane([x1 + 0.3, y1 + 0.3, h], [0, -1, 0], [-run / L, 0, rise / L]));
+    el('path', { d: rect(0, 0, y1 - y0 + 0.6, L), fill: 'url(#p-roof)', stroke: 'none' }, pg);
+  }
+}
+
+/** Goods in a shop window, drawn on the wall plane inside the glazing (u0 … u1, w −3 … 0). */
+function display(g: Element, kind: string, u0: number, u1: number, I: Iso) {
+  const pw = (px: number) => M(px, I);
+  const shelf = (w: number) => path(g, `M${f(u0 + 0.2)} ${w} L${f(u1 - 0.2)} ${w}`, { 'stroke-width': pw(0.6) });
+  const disc = (u: number, w: number, r: number) => `M${f(u + r)} ${f(w)} A${r} ${r} 0 1 0 ${f(u - r)} ${f(w)} A${r} ${r} 0 1 0 ${f(u + r)} ${f(w)}Z`;
+  if (kind === 'pasteleria') {
+    shelf(-1.0); shelf(-2.0);
+    const cakes = [], icing = [];
+    for (let u = u0 + 0.6; u < u1 - 0.4; u += 0.75) for (const w of [-1.0, -2.0]) { cakes.push(rect(u - 0.26, w - 0.3, u + 0.26, w)); icing.push(`M${f(u - 0.26)} ${f(w - 0.3)} q0.13 0.12 0.26 0 q0.13 0.12 0.26 0`); if ((u * 7) % 2 < 1) cakes.push(rect(u - 0.15, w - 0.5, u + 0.15, w - 0.3)); }
+    tint(path(g, cakes.join(' '), { 'stroke-width': pw(0.4) }), '#e9c08a', 0.5);
+    tint(path(g, icing.join(' '), { 'stroke-width': pw(0.5) }), '#f6dbe2', 0.5, 'stroke');
+  } else if (kind === 'cafe') {
+    path(g, `M${f(u0 + 0.3)} -1.1 L${f(u1 - 0.3)} -1.1`, { 'stroke-width': pw(0.8) });
+    const lamps = [];
+    for (let u = u0 + 1.2; u < u1 - 0.8; u += 2.2) lamps.push(`M${f(u)} -3 L${f(u)} -2.5 ${disc(u, -2.32, 0.18)}`);
+    tint(path(g, lamps.join(' '), { 'stroke-width': pw(0.4) }), '#f6e7c0', 0.4);
+    const bottles = [];
+    for (let u = u0 + 0.5; u < u1 - 0.3; u += 0.32) bottles.push(`M${f(u)} -1.12 L${f(u)} -1.42 L${f(u + 0.06)} -1.5 L${f(u + 0.12)} -1.42 L${f(u + 0.12)} -1.12Z`);
+    el('path', { d: bottles.join(' '), fill: 'currentColor', opacity: 0.6 }, g);
+  } else if (kind === 'recuerdos') {
+    const fans = [], cards = [], cols = ['#c8463a', '#2f6fa8', '#e0b33a', '#3e8f6a'];
+    for (let u = u0 + 0.7; u < u1 - 0.5; u += 1.6) fans.push(`M${f(u)} -1.9 L${f(u - 0.5)} -2.35 A0.68 0.68 0 0 1 ${f(u + 0.5)} -2.35Z`);
+    tint(path(g, fans.join(' '), { 'stroke-width': pw(0.4) }), '#c8463a', 0.5);
+    for (let u = u0 + 0.4; u < u1 - 0.4; u += 0.4) for (const w of [-0.9, -1.4]) cards.push(rect(u, w - 0.32, u + 0.26, w));
+    cols.forEach((c, i) => tint(path(g, cards.filter((_, k) => k % 4 === i).join(' '), { 'stroke-width': pw(0.3) }), c, 0.5));
+  } else if (kind === 'ceramica') {
+    shelf(-1.1); shelf(-2.1);
+    const pots = [], plates = [];
+    for (let u = u0 + 0.5; u < u1 - 0.4; u += 0.7) { pots.push(`M${f(u - 0.18)} -1.1 Q${f(u - 0.28)} -1.35 ${f(u - 0.12)} -1.5 L${f(u + 0.12)} -1.5 Q${f(u + 0.28)} -1.35 ${f(u + 0.18)} -1.1Z`); plates.push(disc(u, -2.4, 0.26)); }
+    tint(path(g, pots.join(' '), { 'stroke-width': pw(0.4) }), '#2f6fa8', 0.5);
+    tint(path(g, plates.join(' '), { 'stroke-width': pw(0.4) }), '#f1ecdf', 0.5);
+  }
+}
+
+/** Patterns, each in its own plane's metres (they transform with the plane). */
 function groundPatterns(defs: Element) {
+  const R = seeded(77);
+  const pat = (id: string, w: number, h: number) => el('pattern', { id, width: w, height: h, patternUnits: 'userSpaceOnUse' }, defs);
+  const specks = (g: Element, w: number, h: number, n: number, colour: string, r0: number, r1: number, op: number) => {
+    const d = [];
+    for (let i = 0; i < n; i++) { const x = R(0, w), y = R(0, h), r = R(r0, r1); d.push(`M${f(x + r)} ${f(y)} A${f(r)} ${f(r)} 0 1 0 ${f(x - r)} ${f(y)} A${f(r)} ${f(r)} 0 1 0 ${f(x + r)} ${f(y)}Z`); }
+    el('path', { d: d.join(' '), fill: colour, opacity: op }, g);
+  };
+  // grime on the paving: specks, dark gum spots, faint stains
+  const grime = pat('p-grime', 6, 6);
+  const st = [];
+  for (let i = 0; i < 4; i++) { const x = R(0.5, 5.5), y = R(0.5, 5.5); st.push(`M${f(x + R(0.4, 0.9))} ${f(y)} A0.8 0.5 ${f(R(0, 90))} 1 0 ${f(x - 0.6)} ${f(y)} A0.8 0.5 0 1 0 ${f(x + 0.6)} ${f(y)}Z`); }
+  el('path', { d: st.join(' '), fill: '#7a6a52', opacity: 0.07 }, grime);
+  specks(grime, 6, 6, 70, '#5a5040', 0.012, 0.03, 0.35);
+  specks(grime, 6, 6, 40, '#ffffff', 0.012, 0.03, 0.35);
+  specks(grime, 6, 6, 5, '#3a3530', 0.03, 0.05, 0.45);
+  // stucco: speckled render, a few patches where it was redone, hairline cracks
+  const stucco = pat('p-stucco', 5, 5);
+  const patch = [];
+  for (let i = 0; i < 3; i++) { const x = R(0.5, 4.5), y = R(0.5, 4.5), a = R(0.3, 0.8), b = R(0.2, 0.5); patch.push(`M${f(x - a)} ${f(y)} Q${f(x - a)} ${f(y - b)} ${f(x)} ${f(y - b * 1.1)} Q${f(x + a * 1.1)} ${f(y - b)} ${f(x + a)} ${f(y)} Q${f(x + a * 0.9)} ${f(y + b)} ${f(x)} ${f(y + b * 0.9)} Q${f(x - a * 1.1)} ${f(y + b)} ${f(x - a)} ${f(y)}Z`); }
+  el('path', { d: patch.join(' '), fill: '#8a7860', opacity: 0.06 }, stucco);
+  specks(stucco, 5, 5, 60, '#6a5a44', 0.01, 0.022, 0.3);
+  specks(stucco, 5, 5, 40, '#ffffff', 0.01, 0.022, 0.4);
+  const cracks = [];
+  for (let i = 0; i < 2; i++) { let x = R(0.5, 4.5), y = R(0.5, 4.5); let d = `M${f(x)} ${f(y)}`; for (let k = 0; k < 5; k++) { x += R(-0.12, 0.12); y += R(0.06, 0.16); d += ` L${f(x)} ${f(y)}`; } cracks.push(d); }
+  el('path', { d: cracks.join(' '), stroke: '#5a4c3a', 'stroke-width': 0.012, fill: 'none', opacity: 0.5 }, stucco);
+  // dressed stone: courses 0.6 m high, staggered joints, the odd darker or paler block, pitting
+  const ash = pat('p-ashlar', 3.6, 1.2);
+  const tintB = [], paleB = [];
+  [[0, 1.1], [1.1, 2.3], [2.3, 3.6]].forEach(([a, b], i) => (i === 1 ? tintB : paleB).push(rect(a + 0.02, 0.02, b - 0.02, 0.58)));
+  [[-0.55, 0.55], [0.55, 1.7], [1.7, 2.9], [2.9, 4.15]].forEach(([a, b], i) => (i === 2 ? tintB : i === 0 ? paleB : []).push(rect(a + 0.02, 0.62, b - 0.02, 1.18)));
+  el('path', { d: tintB.join(' '), fill: '#7a6a50', opacity: 0.08 }, ash);
+  el('path', { d: paleB.join(' '), fill: '#ffffff', opacity: 0.12 }, ash);
+  el('path', { d: 'M0 0 L3.6 0 M0 0.6 L3.6 0.6 M0 0 L0 0.6 M1.1 0 L1.1 0.6 M2.3 0 L2.3 0.6 M0.55 0.6 L0.55 1.2 M1.7 0.6 L1.7 1.2 M2.9 0.6 L2.9 1.2', stroke: '#6a5c46', 'stroke-width': 0.028, fill: 'none', opacity: 0.6 }, ash);
+  specks(ash, 3.6, 1.2, 30, '#5a4c3a', 0.008, 0.02, 0.35);
+  // curved clay roof tiles: rows of cover tiles, courses overlapping up the slope
+  const roofT = pat('p-roof', 0.9, 0.8);
+  el('path', { d: 'M0 0 L0 0.8 M0.45 0 L0.45 0.8 M0 0.4 Q0.225 0.29 0.45 0.4 Q0.675 0.29 0.9 0.4 M0 0.8 Q0.225 0.69 0.45 0.8 Q0.675 0.69 0.9 0.8', stroke: '#6a3a24', 'stroke-width': 0.03, fill: 'none', opacity: 0.55 }, roofT);
+  el('path', { d: 'M0.08 0.06 L0.37 0.06 L0.37 0.36 L0.08 0.36Z M0.53 0.46 L0.82 0.46 L0.82 0.76 L0.53 0.76Z', fill: '#ffffff', opacity: 0.1 }, roofT);
   // granite flags in courses 0.8 m deep running along the front, joints staggered
   const flags = el('pattern', { id: 'p-flags', width: 3.2, height: 4.2, patternUnits: 'userSpaceOnUse' }, defs);
   const fj = [];
@@ -154,9 +255,15 @@ function groundPatterns(defs: Element) {
   }
 }
 
-export function buildSquare(I: Iso, layers: { ground: Element; build: Element; glow: Element; defs: Element }) {
-  const { ground, build, glow, defs } = layers;
+export function buildSquare(I: Iso, layers: { ground: Element; build: Element; glow: Element; defs: Element; dyn: Element }) {
+  const { ground, build, glow, defs, dyn } = layers;
   const casters: Array<(sun: Sun) => string> = [];
+  // boxes that also throw shadows onto the walls (wallShadow), static
+  const boxes: Array<[V3, V3]> = [];
+  const wallShadeX = el('path', { fill: '#2d2b44', stroke: 'none', opacity: 0 }), wallShadeY = el('path', { fill: '#2d2b44', stroke: 'none', opacity: 0 });
+  // the square is closed on its near sides too, by houses the camera never shows; they cast
+  // shadows across the paving and up the cathedral and the shops, with gaps for the streets
+  for (const [a, b] of ENCLOSURE) { casters.push((sun) => boxShadow(I, sun, a, b)); boxes.push([a, b]); }
   const live: Array<(t: number, dt: number, wind: number, P: Palette, tau: number) => void> = [];
   const groundLights: Array<{ n: Element; k: number; thr: number }> = [];
   groundPatterns(defs);
@@ -214,13 +321,16 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
   for (let k = -2; k <= 2; k++) mh.push(`M${23.2 + k * 0.2} ${21 - Math.sqrt(0.3 - (k * 0.2) ** 2)} L${23.2 + k * 0.2} ${21 + Math.sqrt(0.3 - (k * 0.2) ** 2)}`);
   tint(el('path', { d: mh.join(' '), stroke: 'currentColor', 'stroke-width': pw(0.4) }, gp), '#4a4744', 0.4);
 
+  el('path', { d: rect(-12, -12, 70, 70), fill: 'url(#p-grime)', stroke: 'none' }, gp);
+
   // ---------- buildings: [x0, y0, x1, y1, height, colour, kind]
   const rows: Array<[number, number, number, number, number, string, string]> = [
-    [-11, -11, 0, 1, 15, '#e8cf9e', 'corner'],
-    [0.6, -11, 13, 0, 15, '#efd9b0', 'pasteleria'],
-    [13, -11, 28, 0, 16.5, '#e9c9a6', 'cafe'],
-    [28, -11, 46, 0, 14, '#eed6b4', 'recuerdos'],
-    [-11, 27.2, 0, 40, 15, '#ecd2ae', 'ceramica'],
+    [-32, 19, -11, 44, 21, '#e2cfa8', 'palacio'],
+    [-11, -11, 0, 1, 19, '#e8cf9e', 'corner'],
+    [0.6, -11, 13, 0, 17.5, '#efd9b0', 'pasteleria'],
+    [13, -11, 28, 0, 19.5, '#e9c9a6', 'cafe'],
+    [28, -11, 46, 0, 17.5, '#eed6b4', 'recuerdos'],
+    [-11, 27.2, 0, 40, 18, '#ecd2ae', 'ceramica'],
   ];
   const parts: Array<{ key: number; draw: () => void }> = [];
   const names = { pasteleria: 'Pastelería', cafe: 'Café de la Catedral', recuerdos: 'Recuerdos', ceramica: 'Cerámica' };
@@ -233,19 +343,20 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
       const back = y1 <= 0;
       const r = gable(g, I, x0 - 0.3, y0 - 0.3, x1 + 0.3, y1 + 0.3, h, 3.6, back ? 'x' : 'y', PEN);
       surface(r.slope, '#d58a62', r.normal); surface(r.end, colour, back ? [1, 0, 0] : [0, 1, 0]);
-      const tiles = [];
-      if (back) for (let x = x0; x <= x1 + 0.3; x += 0.55) tiles.push(I.poly([[x, (y0 + y1) / 2, h + 3.6], [x, y1 + 0.3, h]], true));
-      else for (let y = y0; y <= y1 + 0.3; y += 0.55) tiles.push(I.poly([[(x0 + x1) / 2, y, h + 3.6], [x1 + 0.3, y, h]], true));
-      path(g, tiles.join(' '), { 'stroke-width': 0.4, opacity: 0.55 });
+      roofTiles(g, I, x0, y0, x1, y1, h, 3.6, back ? 'x' : 'y');
       casters.push((sun) => boxShadow(I, sun, [x0, y0, 0], [x1, y1, h + 1.8]));
+      boxes.push([[x0, y0, 0], [x1, y1, h + 1.8]]);
+      if (kind === 'palacio') return;
       if (kind === 'corner') { floors(I, g, wallOn(g, I, [x1, y1, 0], [0, -1, 0], [1, 0, 0], y1 - y0), [1, 0, 0], 0.4, 4, 3.6, [3, 6.5, 9.5], { balcony: false }); return; }
       const facing: V3 = back ? [0, 1, 0] : [1, 0, 0];
       const wall = back ? wallOn(g, I, [x0, y1, 0], [1, 0, 0], facing, x1 - x0) : wallOn(g, I, [x1, y1, 0], [0, -1, 0], facing, y1 - y0);
       const len = back ? x1 - x0 : y1 - y0;
+      el('path', { d: rect(0, -h, len, 0), fill: 'url(#p-stucco)', stroke: 'none' }, wall.g);
       const bays: number[] = [];
       for (let u = 2; u < len - 1; u += 3.4) bays.push(u);
       floors(I, g, wall, facing, 4.4, Math.round((h - 4.4) / 3.4), 3.4, bays, { shutter: { pasteleria: '#5d4a3a', cafe: '#4f6b55', recuerdos: '#3f6688', ceramica: '#4f6b55' }[kind] });
       shop(I, g, wall, facing, 0.8, len - 0.8, names[kind], styles[kind]);
+      display(wall.g, kind, 0.8, len - 0.8, I);
       const o = wall.at(0.8, 0), e = wall.at(len - 0.8, 0);
       const sg = planeGroup(glow, I.plane(o, [e[0] - o[0], e[1] - o[1], 0], [facing[0] * 6, facing[1] * 6, 0]));
       groundLights.push({ n: el('path', { d: 'M0 0 L1 0 L1.08 1 L-0.08 1Z', fill: 'url(#p-spill)', opacity: 0 }, sg), k: 0.7, thr: 0.03 });
@@ -275,7 +386,7 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
     casters.push((sun) => boxShadow(I, sun, [-34, 6, 0], [-7, 20, 25]));
   } });
   const bells: Array<{ g: SVGGElement; a: number; v: number; u: number }> = [];
-  let clockHands: SVGPathElement | null = null;
+  let clockHands: SVGPathElement | null = null, clockAt: V3 = [0, 20.5, 20];
   for (const [ty0, ty1, left] of [[fy0, fy0 + 7, false], [fy1 - 7, fy1, true]] as Array<[number, number, boolean]>) {
     parts.push({ key: I.depth(-3.5, (ty0 + ty1) / 2) + (left ? 0.6 : 0), draw: () => {
       const g = el('g', {}, build);
@@ -285,11 +396,9 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
       const faces: Array<[V3, V3, V3]> = [[[0, ty1, 0], [0, -1, 0], [1, 0, 0]]];
       if (left) faces.push([[-7, ty1, 0], [1, 0, 0], [0, 1, 0]]);
       for (const [o, along, normal] of faces) {
-        const w = wallOn(g, I, o, along, normal, 7), q = w.g;
-        // coursed ashlar, string courses, corner buttresses
-        const ash = [];
-        for (let z = 0.6; z < H; z += 0.6) ash.push(`M0 ${f(-z)} L7 ${f(-z)}`);
-        path(q, ash.join(' '), { 'stroke-width': pw(0.25), opacity: 0.45 });
+        const w = wallOn(g, I, o, along, normal, 7), q = w.g, dq = planeGroup(dyn, I.wall(o, along));
+        // dressed stone, string courses, corner buttresses
+        el('path', { d: rect(0, -H, 7, 0), fill: 'url(#p-ashlar)', stroke: 'none' }, q);
         path(q, [9.6, 17.4, 23].map((z) => `M0 ${-z} L7 ${-z} M0 ${-z - 0.3} L7 ${-z - 0.3}`).join(' ') + ' M0.6 0 L0.6 -30 M6.4 0 L6.4 -30', { 'stroke-width': pw(0.6) });
         // a side portal, lancets, the belfry with its bells, a balustrade
         if (normal[0] === 1) {
@@ -301,7 +410,7 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
         for (const u of [1.3, 4.1]) {
           el('path', { d: lancet(u, u + 1.6, -28.6, -23.8), fill: '#2a2630', opacity: 0.85 }, q);
           path(q, lancet(u, u + 1.6, -28.6, -23.8), { 'stroke-width': pw(0.55) });
-          const bg = el('g', {}, q);
+          const bg = el('g', {}, dq);
           tint(el('path', { d: 'M-0.42 0 Q-0.46 0.66 -0.66 1 L0.66 1 Q0.46 0.66 0.42 0 Q0.42 -0.22 0 -0.22 Q-0.42 -0.22 -0.42 0Z', stroke: 'currentColor', 'stroke-width': pw(0.4) }, bg), '#a67f3f', 0.5);
           bells.push({ g: bg, a: 0, v: 0, u: u + 0.8 });
         }
@@ -312,12 +421,14 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
         path(q, 'M0.2 -22.2 l-0.9 0.3 l-0.5 -0.3 l0.4 -0.3 l1 -0.1 M6.8 -22.2 l0.9 0.3 l0.5 -0.3 l-0.4 -0.3 l-1 -0.1', { 'stroke-width': pw(0.6) });
         // the clock on the south tower's front, keeping the scene's time
         if (left && normal[0] === 1) {
-          const dial = 'M5 -20 A1.5 1.5 0 1 0 2 -20 A1.5 1.5 0 1 0 5 -20Z';
-          tint(path(q, dial, { 'stroke-width': pw(0.6) }), '#f3ecdc', 0.45);
+          const dial = 'M5.4 -20 A1.9 1.9 0 1 0 1.6 -20 A1.9 1.9 0 1 0 5.4 -20Z';
+          tint(path(q, dial, { 'stroke-width': pw(0.7) }), '#f3ecdc', 0.45);
+          path(q, 'M5.65 -20 A2.15 2.15 0 1 0 1.35 -20 A2.15 2.15 0 1 0 5.65 -20Z', { 'stroke-width': pw(0.5) });
           const ticks = [];
-          for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; ticks.push(`M${f(3.5 + Math.sin(a) * 1.25)} ${f(-20 - Math.cos(a) * 1.25)} L${f(3.5 + Math.sin(a) * 1.05)} ${f(-20 - Math.cos(a) * 1.05)}`); }
-          path(q, ticks.join(' '), { 'stroke-width': pw(0.4) });
-          clockHands = path(q, '', { 'stroke-width': pw(0.7) }) as SVGPathElement;
+          for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; ticks.push(`M${f(3.5 + Math.sin(a) * 1.65)} ${f(-20 - Math.cos(a) * 1.65)} L${f(3.5 + Math.sin(a) * (k % 3 ? 1.45 : 1.3))} ${f(-20 - Math.cos(a) * (k % 3 ? 1.45 : 1.3))}`); }
+          path(q, ticks.join(' '), { 'stroke-width': pw(0.5) });
+          clockHands = path(dq, '', { 'stroke-width': pw(1.1) }) as SVGPathElement;
+          clockAt = [o[0], o[1] - 3.5, 20];
         }
       }
       const sp = pyramid(g, I, -3.5, cyT, 3, H, 13, PEN);
@@ -327,6 +438,7 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
         surface(pp.left, stone2, [0, 0.7, 0.7]); surface(pp.right, stone, [0.7, 0, 0.7]);
       }
       casters.push((sun) => boxShadow(I, sun, [-7, ty0, 0], [0, ty1, H]));
+      boxes.push([[-7, ty0, 0], [0, ty1, H]]);
       casters.push((sun) => blobShadow(I, sun, -3.5, cyT, 1.6, H + 11));
     } });
   }
@@ -341,9 +453,7 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
     const flank = el('path', { d: I.poly([[xr, ya, 0], [0, ya, 0], [0, ya, 30], [xr, ya, 30]]), stroke: 'currentColor', 'stroke-width': PEN }, g);
     surface(flank, stone2, [0, 1, 0]);
     const w = wallOn(g, I, [xr, yb, 0], [0, -1, 0], [1, 0, 0], W), q = w.g, m = W / 2;
-    const ash = [];
-    for (let z = 0.6; z < 22; z += 0.6) ash.push(`M0 ${f(-z)} L${W} ${f(-z)}`);
-    path(q, ash.join(' '), { 'stroke-width': pw(0.25), opacity: 0.4 });
+    el('path', { d: `M0 0 L0 -22 L${m} -28.5 L${W} -22 L${W} 0Z`, fill: 'url(#p-ashlar)', stroke: 'none' }, q);
     // archivolts, each a ring of small carved figures
     const arch = (k: number) => lancet(m - 3.2 + k * 0.4, m + 3.2 - k * 0.4, -12.2 + k * 0.5, 0);
     for (let k = 0; k < 6; k++) path(q, arch(k), { 'stroke-width': pw(0.55) });
@@ -405,6 +515,7 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
   // the steps: a landing in the recess, four treads across the whole front, side walls with
   // pedestals and urns, worn hollows in the treads
   parts.push({ key: I.depth(2, FRONT.cy) + 2, draw: () => {
+    build.appendChild(wallShadeX);
     const g = el('g', {}, build);
     const s0 = box(g, I, [-recess, fy0 + 7, 0], [0, fy1 - 7, 1.2], PEN * 0.6);
     surface(s0.top, '#e5dac2', [0, 0, 1]); surface(s0.right, '#cfc1a2', [1, 0, 0]); surface(s0.left, '#cfc1a2', [0, 1, 0]);
@@ -415,6 +526,7 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
       path(g, I.poly([[3.85 - i, fy0 - 1, (i + 1) * 0.3], [3.85 - i, fy1 + 1, (i + 1) * 0.3]], true), { 'stroke-width': 0.35, opacity: 0.6 });
       const hg = planeGroup(g, I.ground((i + 1) * 0.3));
       surface(el('path', { d: `M${3.1 - i} ${FRONT.cy - 3} Q${3.5 - i} ${FRONT.cy} ${3.1 - i} ${FRONT.cy + 3} Q${3.7 - i} ${FRONT.cy} ${3.1 - i} ${FRONT.cy - 3}Z`, stroke: 'none', opacity: 0.6 }, hg), '#f0e8d6', [0, 0, 1]);
+      el('path', { d: rect(i === 3 ? 0 : 3 - i, FRONT.y0 - 1, 4 - i, FRONT.y1 + 1), fill: 'url(#p-grime)', stroke: 'none' }, hg);
     }
     for (const y of [fy0 - 1.6, fy1 + 1]) {
       const cw = box(g, I, [0, y, 0], [4.4, y + 0.6, 1.5], PEN * 0.6);
@@ -428,15 +540,16 @@ export function buildSquare(I: Iso, layers: { ground: Element; build: Element; g
   } });
 
   parts.sort((a, b) => a.key - b.key).forEach((p) => p.draw());
+  build.appendChild(wallShadeY);
 
   const bellsApi = { poke() { bells.forEach((b, i) => (b.v += 2.4 * (i % 2 ? -1 : 1))); } };
+  const staticLive = (P: Palette) => put(veil, 'opacity', f(P.inkT * 0.62));
   live.push((t, dt, wind, P, tau) => {
-    bells.forEach((b) => { b.v += (-b.a * 7 - b.v * 0.6) * dt; b.a += b.v * dt; b.g.setAttribute('transform', `translate(${f(b.u)} -28.2) rotate(${f(b.a * 57.3)})`); });
-    if (clockHands) { const hrs = tau * 24, ha = ((hrs % 12) / 12) * Math.PI * 2, ma = ((hrs * 60) % 60) / 60 * Math.PI * 2; clockHands.setAttribute('d', `M3.5 -20 L${f(3.5 + Math.sin(ha) * 0.75)} ${f(-20 - Math.cos(ha) * 0.75)} M3.5 -20 L${f(3.5 + Math.sin(ma) * 1.1)} ${f(-20 - Math.cos(ma) * 1.1)}`); }
-    for (const l of groundLights) l.n.setAttribute('opacity', f(smooth(l.thr, l.thr + 0.25, P.lamp) * l.k));
-    veil.setAttribute('opacity', f(P.inkT * 0.62));
+    bells.forEach((b) => { b.v += (-b.a * 7 - b.v * 0.6) * dt; b.a += b.v * dt; put(b.g, 'transform', `translate(${f(b.u)} -28.2) rotate(${f(b.a * 57.3)})`); });
+    if (clockHands) { const hrs = tau * 24, ha = ((hrs % 12) / 12) * Math.PI * 2, ma = ((hrs * 60) % 60) / 60 * Math.PI * 2; put(clockHands, 'd', `M3.5 -20 L${f(3.5 + Math.sin(ha) * 0.95)} ${f(-20 - Math.cos(ha) * 0.95)} M3.5 -20 L${f(3.5 + Math.sin(ma) * 1.4)} ${f(-20 - Math.cos(ma) * 1.4)}`); }
+    for (const l of groundLights) put(l.n, 'opacity', f(smooth(l.thr, l.thr + 0.25, P.lamp) * l.k));
   });
-  return { casters, live, bells: bellsApi, groundLights };
+  return { casters, boxes, wallShade: { x: wallShadeX, y: wallShadeY }, live, staticLive, bells: bellsApi, groundLights, clockAt: clockAt as V3 };
 }
 
 // ------------------------------------------------------------------ square furniture (depth-sorted with people)
@@ -469,7 +582,7 @@ export function buildProps(I: Iso, layer: Element, glow: Element, defs: Element)
   }));
 
   // grand iron lamp-posts with three lanterns, either side of the steps
-  for (const [x, y] of [[6.6, FRONT.y0 - 0.4], [6.6, FRONT.y1 + 0.4], [30, 25]]) {
+  for (const [x, y] of [[6.6, FRONT.y0 - 0.4], [6.6, FRONT.y1 + 0.4], [29, 11]]) {
     add(x, y, (g) => {
       const b = I.p(x, y, 0), t = I.p(x, y, 4.6);
       el('path', { d: `M${f(b[0] - 3)} ${f(b[1])} L${f(b[0] + 3)} ${f(b[1])} L${f(b[0] + 1.6)} ${f(b[1] - 6)} L${f(b[0] - 1.6)} ${f(b[1] - 6)}Z`, fill: '#2a2a30', stroke: 'currentColor', 'stroke-width': PEN * 0.5 }, g);
@@ -492,8 +605,8 @@ export function buildProps(I: Iso, layer: Element, glow: Element, defs: Element)
   }
 
   // a small octagonal fountain with a tiled basin
-  add(27, 17, (g) => {
-    const cx = 27, cy = 17, r = 2.4, oct = (rr: number, z: number) => I.poly(Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, z] as V3; }));
+  add(FOUNTAIN[0], FOUNTAIN[1], (g) => {
+    const [cx, cy] = FOUNTAIN, r = 2.4, oct = (rr: number, z: number) => I.poly(Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, z] as V3; }));
     const sides = [];
     for (let i = 0; i < 8; i++) {
       const a0 = (i / 8) * Math.PI * 2 + Math.PI / 8, a1 = ((i + 1) / 8) * Math.PI * 2 + Math.PI / 8;
@@ -533,7 +646,7 @@ export function buildProps(I: Iso, layer: Element, glow: Element, defs: Element)
   });
 
   // orange trees in pits with cast-iron grates
-  for (const [x, y] of [[21, 8.5], [33, 8.5], [14, 33.5], [22, 29]]) {
+  for (const [x, y] of [[21, 8.5], [31.5, 7.6], [11, 34], [18.5, 24.5]]) {
     add(x, y, (g) => {
       const gg = planeGroup(g, I.ground(0.02));
       const grate = [rect(x - 0.9, y - 0.9, x + 0.9, y + 0.9), `M${x + 0.35} ${y} A0.35 0.35 0 1 0 ${x - 0.35} ${y} A0.35 0.35 0 1 0 ${x + 0.35} ${y}Z`];
@@ -581,12 +694,12 @@ export function buildProps(I: Iso, layer: Element, glow: Element, defs: Element)
   });
 
   // stone benches, bins, a row of bicycles and a scooter by the ceramics shop
-  for (const [x, y] of [[13, 27.6], [25, 30.6]]) add(x, y, (g) => {
+  for (const [x, y] of [[13, 27.6], [22.5, 19.8]]) add(x, y, (g) => {
     const s = box(g, I, [x - 1.6, y - 0.35, 0], [x + 1.6, y + 0.35, 0.45], PEN * 0.6);
     surface(s.top, '#e3d8bf', [0, 0, 1]); surface(s.left, '#cdbf9f', [0, 1, 0]); surface(s.right, '#cdbf9f', [1, 0, 0]);
     return { shadow: (sun) => boxShadow(I, sun, [x - 1.6, y - 0.35, 0], [x + 1.6, y + 0.35, 0.45]) };
   });
-  for (const [x, y] of [[7.4, FRONT.y0 - 1.8], [7.4, FRONT.y1 + 1.8], [29.2, 23.8]]) add(x, y, (g) => {
+  for (const [x, y] of [[7.4, FRONT.y0 - 1.8], [7.4, FRONT.y1 + 1.8], [23.4, 16.6]]) add(x, y, (g) => {
     const b = I.p(x, y, 0), t = I.p(x, y, 0.9);
     tint(el('path', { d: `M${f(b[0] - 2.6)} ${f(t[1])} L${f(b[0] + 2.6)} ${f(t[1])} L${f(b[0] + 2.2)} ${f(b[1])} L${f(b[0] - 2.2)} ${f(b[1])}Z`, stroke: 'currentColor', 'stroke-width': PEN * 0.6 }, g), '#4f6b55', 0.5);
     path(g, `M${f(b[0] - 2.4)} ${f(t[1] + 2.4)} L${f(b[0] + 2.4)} ${f(t[1] + 2.4)}`, { 'stroke-width': 0.4 });
@@ -601,12 +714,12 @@ export function buildProps(I: Iso, layer: Element, glow: Element, defs: Element)
     return { shadow: (sun) => blobShadow(I, sun, x, y, 0.5, 0.6) };
   });
   bike(2.6, 29.6, '#c8463a'); bike(2.6, 31.2, '#2c4a73'); bike(2.6, 32.8, '#3e6b52');
-  add(18, 36.4, (g) => {
+  add(5.5, 36, (g) => {
     // a scooter parked at an angle
-    const b = I.p(18, 36.4, 0), s = k;
+    const b = I.p(5.5, 36, 0), s = k;
     tint(el('path', { d: `M${f(b[0] - 7 * s)} ${f(b[1] - 3 * s)} Q${f(b[0] - 7.5 * s)} ${f(b[1] - 7.4 * s)} ${f(b[0] - 3.4 * s)} ${f(b[1] - 7.2 * s)} L${f(b[0] + 1 * s)} ${f(b[1] - 6.6 * s)} Q${f(b[0] + 3 * s)} ${f(b[1] - 6 * s)} ${f(b[0] + 3.6 * s)} ${f(b[1] - 3 * s)}Z M${f(b[0] + 3 * s)} ${f(b[1] - 3 * s)} L${f(b[0] + 5.4 * s)} ${f(b[1] - 10 * s)} L${f(b[0] + 6.6 * s)} ${f(b[1] - 10 * s)} L${f(b[0] + 6 * s)} ${f(b[1] - 3 * s)}Z`, stroke: 'currentColor', 'stroke-width': PEN * 0.7 }, g), '#9cc3b0', 0.55);
     path(g, `M${f(b[0] - 5 * s + 2 * s)} ${f(b[1] - 1.6 * s)} A${f(1.6 * s)} ${f(1.6 * s)} 0 1 0 ${f(b[0] - 5 * s - 2 * s + 0.8 * s)} ${f(b[1] - 1.6 * s)} A${f(1.6 * s)} ${f(1.6 * s)} 0 1 0 ${f(b[0] - 5 * s + 2 * s)} ${f(b[1] - 1.6 * s)} M${f(b[0] + 6.8 * s)} ${f(b[1] - 1.6 * s)} A${f(1.6 * s)} ${f(1.6 * s)} 0 1 0 ${f(b[0] + 3.6 * s)} ${f(b[1] - 1.6 * s)} A${f(1.6 * s)} ${f(1.6 * s)} 0 1 0 ${f(b[0] + 6.8 * s)} ${f(b[1] - 1.6 * s)} M${f(b[0] + 4.6 * s)} ${f(b[1] - 10 * s)} L${f(b[0] + 7.6 * s)} ${f(b[1] - 10.6 * s)} M${f(b[0] - 5 * s)} ${f(b[1] - 7.4 * s)} L${f(b[0] - 1 * s)} ${f(b[1] - 7.6 * s)}`, { 'stroke-width': PEN * 0.8 });
-    return { shadow: (sun) => blobShadow(I, sun, 18, 36.4, 0.6, 0.9) };
+    return { shadow: (sun) => blobShadow(I, sun, 5.5, 36, 0.6, 0.9) };
   });
   return props;
 }

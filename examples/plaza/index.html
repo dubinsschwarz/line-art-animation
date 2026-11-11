@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Plaza de la Catedral</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@600;700&display=swap">
+<meta name="description" content="A cathedral square seen from above in hand-inked line, alive from dawn to night.">
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#ebe8e2}
+  body{display:grid;place-items:center}
+  .card{position:relative;width:min(94vw,calc((100vh - 48px) * 1.6));aspect-ratio:8/5;border-radius:18px;overflow:hidden;
+        box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 0 0 1px rgba(40,34,26,.10),0 18px 50px -18px rgba(40,34,26,.35),0 4px 14px -6px rgba(40,34,26,.18);
+        --ink:#1c1c1c;touch-action:none;isolation:isolate}
+  #plaza,#plaza svg{display:block;width:100%;height:100%;user-select:none;-webkit-user-select:none}
+  #plaza svg .pp{fill:var(--paper,#fdfdfc)}
+  .hud{position:absolute;left:2.2%;top:3.4%;font:500 clamp(10px,1.25vw,15px)/1.3 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;color:var(--ink);letter-spacing:.04em;pointer-events:none;opacity:.85}
+  .hud b{font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:.06em}
+  .hud span{margin-left:6px;font-size:.9em;font-style:italic}
+  #hint{position:absolute;left:0;right:0;bottom:2.4%;margin:0;text-align:center;font:italic clamp(10px,1.2vw,14px)/1.4 "Iowan Old Style",Georgia,serif;color:var(--ink);opacity:.75;pointer-events:none;transition:opacity 1.2s}
+  #hint.gone{opacity:0}
+</style></head><body>
+<div class="card" id="card">
+  <div id="plaza"></div>
+  <div class="hud" id="clock"></div>
+  <p id="hint">drag the sun across the sky · click the bells, the pigeons, anyone</p>
+</div>
+<script type="module" src="./main.ts"></script></body></html>

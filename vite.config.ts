@@ -10,6 +10,7 @@ export default defineConfig({
         village: resolve(import.meta.dirname, 'examples/village/index.html'),
         calle: resolve(import.meta.dirname, 'examples/calle/index.html'),
         carrer: resolve(import.meta.dirname, 'examples/carrer/index.html'),
+        plaza: resolve(import.meta.dirname, 'examples/plaza/index.html'),
       },
     },
   },

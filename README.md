@@ -21,6 +21,19 @@ pointer.
 | `examples/village/` | A full scene: a street of machiya, a tea house and a bath house by a canal, villagers on schedules, a cat, birds, a boatman, lit windows and reflections, about a dozen interactions. |
 | `scripts/` | Deterministic frame capture for video, and tools for measuring a reference clip. |
 
+## Aerial scenes: the iso-line-art skill
+
+`skills/iso-line-art/` is a second skill for scenes seen from above at a quasi-isometric
+(2:1 dimetric) angle: squares, markets, harbours as living dioramas. It adds `lib/iso.ts`
+(camera, planes, boxes and roofs, the sun's light and shadows) to the library, and
+`examples/plaza/` is its reference scene, a cathedral square with shops, café terraces,
+people sitting and walking, and pigeons. To install it in Claude Code, copy or link the
+folder into your skills directory alongside this one:
+
+```sh
+ln -s ~/.claude/skills/line-art-animation/skills/iso-line-art ~/.claude/skills/iso-line-art
+```
+
 ## Install the skill
 
 For Claude Code, clone it into your skills folder:

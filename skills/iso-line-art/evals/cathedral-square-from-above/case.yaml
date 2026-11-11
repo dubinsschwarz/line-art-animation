@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: cathedral-square-from-above
+expected_outcome: |
+  A new example page renders a cathedral square from a 2:1 isometric angle in the repo's line-art style:
+  a cathedral with towers and a detailed front along a back edge, shops with signs and awnings around the
+  square, people seated (terraces, steps, benches) and walking, shadows that move with the time of day,
+  lit windows and lamps at night. It typechecks, builds and loads without console errors.

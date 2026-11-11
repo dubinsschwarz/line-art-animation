@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: harbour-market-from-above
+expected_outcome: |
+  A new example renders a harbour from a quasi-isometric angle on a slab: houses along the back edges,
+  a quay with market stalls and awnings, water with moored and moving boats, gulls, people at the market,
+  sun-driven shading and shadows through the day and lights at night, in the line-art style. It typechecks,
+  builds and loads without console errors.
